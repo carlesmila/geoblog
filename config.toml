@@ -1,9 +1,9 @@
-baseurl = "https://www.example.com/"
+baseurl = "/"
 languageCode = "en-us"
-title = "Blackburn Theme Demo"
+title = "Geoblog"
 theme = "blackburn"
-author = "Yoshiharu Yamashita"
-copyright = "&copy; 2016. All rights reserved."
+author = "Carles Milà"
+copyright = "&copy; 2020. All rights reserved."
 canonifyurls = true
 paginate = 10
 
