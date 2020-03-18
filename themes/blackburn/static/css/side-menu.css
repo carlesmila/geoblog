@@ -49,19 +49,19 @@ The content `<div>` is where all your content goes.
 
 .header {
      margin: 0;
-     color: #333;
+     color: #1d266b;
      text-align: center;
      padding: 2.5em 2em 0;
      border-bottom: 1px solid #eee;
  }
     .header h1 {
         margin: 0.2em 0;
-        font-size: 3em;
+        font-size: 5em;
         font-weight: 300;
     }
      .header h2 {
         font-weight: 300;
-        color: #ccc;
+        color: #1d266b;
         padding: 0;
         margin-top: 0;
     }
@@ -87,7 +87,7 @@ appears on the left side of the page.
     left: 0;
     bottom: 0;
     z-index: 1000; /* so the menu or its navicon stays above all content */
-    background: #191818;
+    background: #1d266b;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
 }
@@ -95,7 +95,7 @@ appears on the left side of the page.
     All anchors inside the menu should be styled like this.
     */
     #menu a {
-        color: #999;
+        color: #dfdfdf;
         border: none;
         padding: 0.6em 0 0.6em 0.6em;
     }
@@ -114,7 +114,7 @@ appears on the left side of the page.
     */
     #menu .pure-menu ul,
     #menu .pure-menu .menu-item-divided {
-        border-top: 1px solid #333;
+        border-top: 1px solid #fbbf4e;
     }
         /*
         Change color of the anchor links on hover/focus.
@@ -135,15 +135,15 @@ appears on the left side of the page.
         This styles a link within a selected menu item `<li>`.
         */
         #menu .pure-menu-selected a {
-            color: #fff;
+            color: #fbbf4e;
         }
 
     /*
     This styles the menu heading.
     */
     #menu .pure-menu-heading {
-        font-size: 110%;
-        color: #fff;
+        font-size: 1;
+        color: #fbbf40e;
         margin: 0;
     }
 

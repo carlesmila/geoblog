@@ -1,12 +1,14 @@
 <div class="pure-menu social">
   <ul class="pure-menu-list">
-
+	
+	<!-- 
     {{ if .OutputFormats.Get "RSS" }}
     <li class="pure-menu-item">
       <a class="pure-menu-link" href='{{ with .OutputFormats.Get "RSS" }}{{ .RelPermalink }}{{ end }}'><i
           class="fas fa-rss"></i>RSS</a>
     </li>
     {{ end }}
+	-->
 
     <!-- SNS microblogging -->
 
@@ -129,6 +131,13 @@
     {{ with .Site.Social.github }}
     <li class="pure-menu-item">
       <a class="pure-menu-link" href="https://github.com/{{ . }}" rel="me" target="_blank"><i class="fab fa-github-square fa-fw"></i>GitHub</a>
+    </li>
+    {{ end }}
+	
+	{{ with .Site.Social.researchgate}}
+    <li class="pure-menu-item">
+      <a class="pure-menu-link" href="https://www.researchgate.net/profile/{{ . }}" rel="me" target="_blank"><i class="fas fa-flask fa-fw">
+        </i>ResearchGate</a>
     </li>
     {{ end }}
 
