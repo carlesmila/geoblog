@@ -1,6 +1,6 @@
 baseurl = "/"
 languageCode = "en-us"
-title = "Geoblog"
+title = "Carles' geoblog"
 theme = "blackburn"
 author = "Carles Milà"
 copyright = "&copy; 2020. All rights reserved."
@@ -13,8 +13,8 @@ paginate = 10
 
 [params]
   # Shown in the home page
-  subtitle = "All things statistical and spatial"
-  brand = "Geoblog"
+  subtitle = "A diary of all things statistical and spatial"
+  brand = "Carles Milà"
   googleAnalytics = "Your Google Analytics tracking ID"
   disqus = "Your Disqus shortname"
   # CSS name for highlight.js

@@ -1,5 +1,5 @@
 body {
-    color: #777;
+    color: #5c5c5c;
 }
 
 .pure-img-responsive {
@@ -61,7 +61,7 @@ The content `<div>` is where all your content goes.
     }
      .header h2 {
         font-weight: 300;
-        color: #1d266b;
+        color: #214cb0;
         padding: 0;
         margin-top: 0;
     }
@@ -69,10 +69,8 @@ The content `<div>` is where all your content goes.
 .content-subhead {
     margin: 50px 0 20px 0;
     font-weight: 300;
-    color: #888;
+    color: #5c5c5c;
 }
-
-
 
 /*
 The `#menu` `<div>` is the parent `<div>` that contains the `.pure-menu` that

@@ -1,31 +1,17 @@
 ---
-date: "2014-04-09"
-description: About me and this site
+date: "2020-04-04"
 sidemenu: "true"
 title: About
 ---
 
-Hugo is a static site engine written in Go.
+# About me
 
+My name is Carles Milà and I am a statistician with a strong interest in spatial data/methods/technologies currently based in Lisbon, Portugal. I have a Bachelor in Economics ([UPF](https://www.upf.edu/home) - Barcelona), a Master's in Statistics ([UPC](https://www.upc.edu/en?set_language=en)) and I am currently enrolled in an Erasmus Mundus program in [Geospatial Technologies](http://mastergeotech.info/) (Lisbon/Münster). I have worked as a biostatistician for three years in the reseach centre [ISGlobal](https://www.isglobal.org/en/) in the field of environmental epidemiology. That's where I discovered the world of spatial data and their potential, and absolutely fell in love with them!
 
-It makes use of a variety of open source projects including:
+Besides statistics and GIS, I am a nature lover who will never say no to a good hike. I'm also entering the fascinating world of birdwatching and trying to convince those around me to join me. I also enjoy playing piano, reading and learning languages. 
 
-* [Cobra](https://github.com/spf13/cobra)
-* [Viper](https://github.com/spf13/viper)
-* [J Walter Weatherman](https://github.com/spf13/jWalterWeatherman)
-* [Cast](https://github.com/spf13/cast)
+To do before I die: Get a math degree! 
 
-Learn more and contribute on [GitHub](https://github.com/spf13).
+# About the site
 
-## Setup
-
-Some fun facts about [Hugo](http://gohugo.io/):
-
-* Built in [Go](http://golang.org/)
-* Loosely inspired by [Jekyll](http://jekyllrb.com/)
-* Primarily developed by [spf13](http://spf13.com/) on the train while commuting to and from Manhattan.
-* Coded in [Vim](http://vim.org) using [spf13-vim](http://vim.spf13.com/)
-
-Have questions or suggestions? Feel free to [open an issue on GitHub](https://github.com/spf13/hugo/issues/new) or [ask me on Twitter](https://twitter.com/spf13).
-
-Thanks for reading!
+This website intends to be a repository of analyses/thoughts I do for fun or learning purposes, so that I can share them easily and/or come back to them when I need them. If you happen to be reading this, I hope you will enjoy reading its content and feel free to contact me if I can help you somehow :)
