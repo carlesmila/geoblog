@@ -6,7 +6,7 @@ title: About
 
 # About me
 
-My name is Carles Milà and I am a statistician with a strong interest in spatial data/methods/technologies currently based in Lisbon, Portugal. I have a Bachelor in Economics ([UPF](https://www.upf.edu/home) - Barcelona), a Master's in Statistics ([UPC](https://www.upc.edu/en?set_language=en)) and I am currently enrolled in an Erasmus Mundus program in [Geospatial Technologies](http://mastergeotech.info/) (Lisbon/Münster). I have worked as a biostatistician for three years in the reseach centre [ISGlobal](https://www.isglobal.org/en/) in the field of environmental epidemiology. That's where I discovered the world of spatial data and their potential, and absolutely fell in love with them!
+My name is Carles Milà and I am a statistician with a strong interest in spatial data/methods/technologies currently based in Lisbon, Portugal. I have a Bachelor in Economics ([UPF](https://www.upf.edu/home) - Barcelona), a Master's in Statistics ([UPC](https://www.upc.edu/en?set_language=en) - Barcelona) and I am currently enrolled in an Erasmus Mundus program in [Geospatial Technologies](http://mastergeotech.info/) (Lisbon/Münster). I have worked as a biostatistician for three years in the reseach centre [ISGlobal](https://www.isglobal.org/en/) in the field of environmental epidemiology. That's where I discovered the world of spatial data and their potential, and absolutely fell in love with them!
 
 Besides statistics and GIS, I am a nature lover who will never say no to a good hike. I'm also entering the fascinating world of birdwatching and trying to convince those around me to join me. I also enjoy playing piano, reading and learning languages. 
 

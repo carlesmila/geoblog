@@ -16,7 +16,7 @@ paginate = 10
   subtitle = "A diary of all things statistical and spatial"
   brand = "Carles Milà"
   googleAnalytics = "Your Google Analytics tracking ID"
-  disqus = "Your Disqus shortname"
+  disqus = "carlesmila"
   # CSS name for highlight.js
   highlightjs = "androidstudio"
   dateFormat = "02 Jan 2006, 15:04"
