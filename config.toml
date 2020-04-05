@@ -6,6 +6,7 @@ author = "Carles Milà"
 copyright = "&copy; 2020. All rights reserved."
 canonifyurls = true
 paginate = 10
+baseurl = "https://carlesmila.netlify.com/"
 
 [indexes]
   tag = "tags"
