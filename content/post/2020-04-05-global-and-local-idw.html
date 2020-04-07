@@ -1,0 +1,127 @@
+---
+title: IDW using NOAA data
+author: Carles Milà
+date: '2020-04-05'
+slug: global-and-local-idw
+tags:
+  - Spatial statistics
+  - Geostatistics
+  - Nonparametric
+  - Environment
+  - R
+---
+
+
+
+<div id="basics-of-idw" class="section level1">
+<h1>Basics of IDW</h1>
+<p>Inverse Distance Weighted (IDW) is a simple, nonparametic interpolation method consisting on a weighted average of the observations based on the distance (typically on a two-dimensional space for spatial processes). It relies on the first law of geography, saying that all is related, but near things are more related than distant things. Formally, it is defined as (Bivand et al, 2008):</p>
+<p><span class="math display">\[ \hat{Z}(s_0) = \frac{\sum^n_{i=1} w(s_i) Z(s_i)}{\sum^n_{i=1}w(s_i)} \]</span></p>
+<p>where <span class="math inline">\(Z\)</span> and <span class="math inline">\(\hat{Z}\)</span> are the observed and estimated values of the continuous spatial process, <span class="math inline">\(s\)</span> is a location typically defined in a two-dimensional space <span class="math inline">\((x,y)\)</span>, and <span class="math inline">\(w\)</span> are the weights defined as:</p>
+<p><span class="math display">\[ w(s_i)=||s_i - s_0||^{-p} \]</span></p>
+<p>that is, the Euclidian distance between two locations at the power of <span class="math inline">\(-p\)</span>. For <span class="math inline">\(p = 0\)</span>, all observations will have the same weight no matter the distance between the data point <span class="math inline">\(s_i\)</span> and the target point <span class="math inline">\(s_0\)</span>, while larger values for <span class="math inline">\(p\)</span> will result in giving larger relative weights to the nearest observations. We can tune the value of <span class="math inline">\(p\)</span> using out-of-sample methods such as cross-validation. We can also limit the amount of neighbours to take into consideration to speed up computations.</p>
+<p>IDW is intuitive and quick to implement and it will always yield estimated values ranging between <span class="math inline">\([min(Z_i), max(Z_i)]\)</span>. However, we obtain no estimate of the uncertainty associated with the predictions, it offers a limited flexibility in terms of modelling the correlation between observations based on distance, and ignores the spatial disposition of the observations.</p>
+<p>I’ll illustrate this method using precipitation data for Germany (in mm) extracted from the NOAA API. This is the list of packages I will use:</p>
+<pre class="r"><code>library(&quot;rnoaa&quot;) # Download meteo data from NOAA
+library(&quot;rnaturalearth&quot;) # Country boundaries
+library(&quot;gstat&quot;) # IDW function
+library(&quot;tmap&quot;)
+library(&quot;sf&quot;)
+library(&quot;tidyverse&quot;)</code></pre>
+</div>
+<div id="preparing-precipitation-data" class="section level1">
+<h1>Preparing precipitation data</h1>
+<p>Precipitation data (in mm) for Germany, 2018 will be obtained using the beautiful <a href="https://github.com/ropensci/rnoaa">rnoaa package</a> by <a href="https://ropensci.org/">ropensci</a>. An API token can be freely obtained as indicated in the package documentation.</p>
+<pre class="r"><code># Get location indicators for yearly data (GSOY) at the country level and get Germany
+locations &lt;- ncdc_locs(datasetid=&#39;GSOY&#39;, locationcategoryid = &quot;CNTRY&quot;,
+                       token = api_key, limit = 1000)
+locations &lt;- locations$data %&gt;%
+  filter(name %in% c(&quot;Germany&quot;))
+# Get precipitation data
+meteodata &lt;- ncdc(datasetid = &quot;GSOY&quot;, 
+                  datatypeid = &quot;PRCP&quot;,
+                  locationid = locations$id,
+                  startdate = as.Date(&quot;2018-01-01&quot;),
+                  enddate = as.Date(&quot;2018-12-31&quot;),
+                  limit = 1000, 
+                  token = api_key) %&gt;%
+  .$data
+# Get station data
+stationdata &lt;- map_df(meteodata$station,
+                      ~(ncdc_stations(datasetid=&#39;GSOY&#39;, stationid = .x, token = api_key)$data))
+stationdata$station &lt;- meteodata$station
+# We merge the two tables
+precipdata &lt;- inner_join(meteodata, stationdata, by = &quot;station&quot;)
+# Rename precipitation variable
+precipdata &lt;- rename(precipdata, precipitation = value)</code></pre>
+<p>We want to create geometries with <code>sf</code> to be able perform spatial analysis. We also want to get country boundaries, included in the <a href="https://ropensci.org/tutorials/rnaturalearth_tutorial/">rnaturalearth</a> package. We’ll use ETRS/UTM 31N CRS for Germany.</p>
+<pre class="r"><code># Create geometries
+precipdata &lt;- st_as_sf(precipdata, coords = c(&quot;longitude&quot;, &quot;latitude&quot;), dim = &quot;XY&quot;, crs = 4326) %&gt;%
+  st_transform(crs = 25831)
+# Germany polygon
+germany &lt;- ne_countries(country = &quot;germany&quot;, scale = &quot;medium&quot;) %&gt;%
+  st_as_sf() %&gt;%
+  st_transform(crs = st_crs(precipdata))
+# Subset stations to Germany
+precipdata &lt;- precipdata[st_intersects(precipdata, germany, sparse = FALSE),]</code></pre>
+<p>Now we are ready to do a cartographic representation of the data using the <code>tmap</code> package.</p>
+<pre class="r"><code>tm_shape(germany) +
+    tm_borders() +
+tm_shape(precipdata) +
+    tm_dots(col = &quot;precipitation&quot;, style = &quot;jenks&quot;, size = 0.25, n = 5, palette = &quot;-cividis&quot;) +
+tm_layout(legend.outside = TRUE)</code></pre>
+<p><img src="/post/2020-04-05-global-and-local-idw_files/figure-html/explo_map-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p>It appears that the NE of the country was much drier than the South in 2018.</p>
+</div>
+<div id="tuning-p-in-idw" class="section level1">
+<h1>Tuning p in IDW</h1>
+<p>As mentioned above, <span class="math inline">\(p\)</span> is the parameter that will determine the weights based on the distance between the target location and the observed data. The larger the <span class="math inline">\(p\)</span>, the larger the relative weight of nearby observations (with respect to the rest) will be. To illustrate this, let’s compute IDW interpolations for a different range of <span class="math inline">\(p\)</span> values.</p>
+<pre class="r"><code># We make 10km prediction grid
+grid_ger &lt;- st_make_grid(germany, cellsize = 10000, what = &quot;centers&quot;)
+# Function to perform IDW for a given p
+idw_p &lt;- function(p){
+  idwgrid &lt;- idw(precipitation ~ 1, precipdata, grid_ger, idp = p) %&gt;%
+    rename(precipitation = var1.pred) %&gt;%
+    select(precipitation) %&gt;% 
+    mutate(p = p)
+}
+# Run IDW for a series of p, then join results
+idw_results &lt;- 0:5 %&gt;%
+  map(~ idw_p(p = .x))
+idw_results &lt;- do.call(what = sf:::rbind.sf, args = idw_results)</code></pre>
+<pre class="r"><code># Make nice labels for p
+idw_results$plab &lt;- paste0(&quot;p = &quot;, idw_results$p)
+# Make map with different p values
+tm_shape(germany) +
+    tm_borders() +
+tm_shape(idw_results) +
+    tm_dots(col = &quot;precipitation&quot;, size = 0.25, palette = &quot;-cividis&quot;, style = &quot;cont&quot;) +
+tm_facets(&quot;plab&quot;) +
+tm_layout(legend.outside = TRUE)</code></pre>
+<p><img src="/post/2020-04-05-global-and-local-idw_files/figure-html/map_idw_p_results-1.png" width="672" style="display: block; margin: auto;" /></p>
+<p>As the resulting maps show, the smaller the <span class="math inline">\(p\)</span> parameter, the smoother the resulting surface is, being the result of <span class="math inline">\(p=0\)</span> a constant surface equal to the precipitation average. A usual default for this parameter is 2, although we can do some parameter search to guide the choice. To do so, we can use the in-built functions in <code>gstat</code> and calculate <code>RMSE</code> comparing the observed and predicted values.</p>
+<pre class="r"><code># Function to cross-validate IDW
+cv_idw &lt;- function(p){
+  # Define gstat object
+  idw.gstat &lt;- gstat(id = &quot;precipitation&quot;, formula = precipitation ~ 1, 
+                     data = precipdata, set = list(idp = p))
+  # Perform CV
+  cv &lt;- gstat.cv(object = idw.gstat, nfold = 10)
+  # Calculate RMSE
+  res &lt;- tibble(p = p, RMSE = sqrt(mean((cv$precipitation.pred - cv$observed)^2)))
+  return(res)
+
+}
+# Let&#39;s cv for a range of p
+cv_res &lt;- seq(1, 6, by = 0.1) %&gt;%
+  map_df(~ cv_idw(p = .x))</code></pre>
+<p>We represent the results graphically to see where the minimum RMSE is.</p>
+<pre class="r"><code># And plot results
+ggplot(cv_res, aes(x = p, y = RMSE)) +
+  geom_point() +
+  geom_line() +
+  geom_point(data = filter(cv_res, RMSE == min(cv_res$RMSE)), colour = &quot;red&quot;, size = 4) +
+  theme_bw()</code></pre>
+<p><img src="/post/2020-04-05-global-and-local-idw_files/figure-html/plot_optimal_p-1.png" width="576" style="display: block; margin: auto;" /></p>
+<p>For these data, the value of <span class="math inline">\(p\)</span> that minimises the RMSE is 3.4.</p>
+</div>

@@ -87,3 +87,7 @@ i {
 .pagination a {
   color: #265778;
 }
+
+code {
+  font-size: 90%;
+}

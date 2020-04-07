@@ -3,4 +3,4 @@
 .RData
 .Ruserdata
 public
-content/post/*html
+static/img/*html

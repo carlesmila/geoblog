@@ -19,7 +19,7 @@ baseurl = "https://carlesmila.netlify.com/"
   disqus = "carlesmila"
   # CSS name for highlight.js
   highlightjs = "androidstudio"
-  dateFormat = "02 Jan 2006, 15:04"
+  dateFormat = "02 Jan 2006"
 
 [menu]
   # Shown in the side menu.
@@ -35,6 +35,12 @@ baseurl = "https://carlesmila.netlify.com/"
     weight = 2
     identifier = "post"
     url = "/post/"
+  [[menu.main]]
+    name = "Posts by tag"
+    pre = "<i class='fa fa-tags fa-fw'></i>"
+    weight = 4
+    identifier = "tags"
+    url = "/tags/"
   [[menu.main]]
     name = "About"
     pre = "<i class='fa fa-user fa-fw'></i>"
