@@ -1,0 +1,378 @@
+---
+title: Variogram modeling and kriging using gstat
+author: Carles Milà
+date: '2020-04-10'
+slug: variogram-modeling-and-kriging-using-gstat
+categories: []
+tags:
+  - Geostatistics
+  - Spatial statistics
+  - Parametric
+  - Environment
+  - R
+description: ''
+topics: []
+---
+
+```{r knitr_global_options, include=FALSE}
+knitr::opts_chunk$set(fig.align = 'center',
+                      warning=FALSE, message=FALSE)
+set.seed(23)
+```
+
+# Geostatistics basics
+
+Geostatistics concerns itself with processes that are continuous in space, such as precipitation or air pollution. Since the potential sampling points of a continuous surface are infinitely large, we will generally only sample at a limited amount of locations. The main focus of geostatistics will be to use the information found in these points to predict the whole surface of study. To do so, we rely on the semivariogram function, which models the persistence of the process in space.
+
+These are the packages that will be used in this post
+
+```{r load_packages}
+library("tmap") # Cartography
+library("plotKML") # Vector to raster 
+library("cowplot") # Plot composition
+library("gstat") # geostatistical modelling
+library("raster") # raster classes
+library("sf") # vector classes
+library("tidyverse") # data management
+```
+
+## Geostatistical processes and stationarity
+
+Cressie's (1993) general expression for spatial processes is:
+
+$$Z(s): s \in D_s $$
+
+We will say that $Z(s)$ is the value of the spatial process at location $s$. In geostatistics, $Z$ will be a random and two-dimensional infinite continuous space $D \subset \mathbb{R}^2$, also known as a random field. The goal of geostatistics will be to model the spatial correlation between observations and to use it for interpolation while verifying model hypothesis. Geostatistical processes are generally modelled as:
+
+$$Z(s) = m(s) + \epsilon(s) $$
+
+This is a sum of a mean component $m(s)$, which represents the large-scale variation or spatial trend, and the innovations $\epsilon(s)$, which are the small-scale variation. 
+
+While modelling the spatial trend is fairly easy by means of regression or another predictive method, some assumptions need to be taken as far as the errors are concerned. $\epsilon(s)$ will be a 0-mean random field from which we will have to estimate how observations are related to one another across space. In order to be able to do so, they have to be **intrinsic stationary**.
+
+A geostatistical process will be **strict stationary** when the joint probability of the data is invariant to translations, i.e. it only depends on the relative positions of the sample sites. A weaker form is the **second-order stationary**, which assumes:
+
+1.  $\text{E}[Z(s)]=\mu \quad \forall s \in D$
+2.  $\text{Cov}(Z(s_1),Z(s_2))=\text{Cov}(s_1 - s_2)$ for all $s_1$, $s_2 \in D$ 
+
+That is, it assumes a constant mean and a covariance function that only depends on the relative locations. This also implies a constant variance, as $\text{Cov}(Z(s),Z(s))=\text{Var}(Z(s))=\text{Cov}(s-s)=\text{Cov}(0) \quad \forall s \in D$.
+
+**Intrinsic stationarity** is even less restrictive. It requires:
+
+1.  $\text{E}[Z(s)]=\mu \quad \forall s \in D$
+2.  $\text{Var}(Z(s+h)-Z(s)) = \text{E}[(Z(s+h)-Z(s))^2] = 2 \gamma_Z(h)$ for all $s$, $s+h \in D_s$ 
+
+This implies a constant mean and a **semivariogram** function $\gamma_Z(h)$ that only depends on distance $h$ ($2\gamma_Z(h)$ is known as the variogram). 
+
+Assuming **second order stationary**, it can be shown that the variogram function:
+
+\begin{align*}
+\text{E}[(Z(s+h)-Z(s))^2] & = \text{E}[Z(s+h)^2] + \text{E}[Z(s)^2] - 2 \text{E}[Z(s+h) \cdot Z(s)] \\
+& = \text{Cov}(Z(s+h),Z(s+h)) + \mu^2 + \text{Cov}(Z(s),Z(s)) + \mu^2 - 2 (\text{Cov}(Z(s+h),Z(s)) + \mu^2) \\
+& = \text{Cov}(Z(s+h),Z(s+h)) + \text{Cov}(Z(s),Z(s)) - 2 \text{Cov}(Z(s+h),Z(s)) \\
+& = 2\text{Cov}(0) - 2\text{Cov}(h)
+\end{align*}
+
+Is intrinsic stationary, as it depends on the process variance and a covariance that depends on the distance between locations.  The converse is not always true. For estimating geostatistical models, we will assume the process to be **intrinsic stationary**.
+
+## Modelling large scale variation
+
+To fully characterise a geostatistical process, we have to model both $m(s)$ and $\epsilon(s)$. First, we'll model the trend, generally using regression analysis ($Y = X \beta + \epsilon$). Some of the options for the trend are to assume an constant mean that can be either known or estimated (i.e. regression intercept) from the data. Another option is to use covariates, which will have to be continuously defined in all the area of study. These can be either the actual coordinates of the locations, or some external covariates. 
+
+As a first step of the analysis, a linear regression fit is done using OLS, and the residuals are taken to model their small-scale variation.
+
+## Modelling small scale variation
+
+In order to characterise the interaction between the errors, we'll use the above defined **semivariogram function**. As a first step, we will estimate a sample semivariogram (method of moments) based on the following function:
+
+$$\hat{\gamma}(h) = \frac{1}{2 N_h} \sum_{i=1}^{N_h} (Z(s_i) - Z(s_i + h))^2$$
+
+where $h$ is spatial distance between observation and $N_h$ is the number of pairs that have that distance. In other words, for each distance $h$ defined in bins we will compute the sum of squared differences of pairs of observations that are $h$ spatial units apart, and divide it by two times the number of observations that have that distance. Bins do not have to be of equal range, nor must they cover all range of distances but rather concentrate on the small distances. 
+
+With the estimated sample semivariogram, we will choose a theoretical semivariogram function $\hat\gamma(h;\theta)$ and fit it to the data. This is done to ensure, among others, that prediction variances are not negative. This function will depend upon a set of parameters $\theta$ estimated from the sample semivariogram. Those are:
+
+1. Nugget effect: Semivariance at distance h=0.
+2. Range: Distance $h$ at which the semivariance tops.
+3. Partial sill: Semivariance at the range minus nugget effect.
+
+![](/post/2020-04-10-variogram-modeling-and-kriging-using-gstat_files/semivariogram.png)
+
+The most common theoretical functions for the semivariogram are the exponential, spherical and Matérn. Functions are chosen by visual inspection of the shape of the sample semivariogram:
+
+```{r semivariograms, fig.width=8}
+show.vgms(par.strip.text=list(cex=0.75))
+```
+
+An additional assumption we are making is isotropy. Isotropy means that the semivariogram is the same in all directions. Anisotropy means that the semivariogram changes according to the angle. There are two kinds of anisotropy: geometrical anisotropy (different range) and zonal anisotropy (different sill). Geometrical anisotropy is fairly easy to solve by defying an ellipsoid instead of a circle for the semivariogram influence in the function, i.e. the effective range of the spatial correlation varies with the angle. Zonal anisotropy is more difficult to deal with. Anisotropy can be explored by computing sample semivariograms grouping by the direction of the spatial locations (in angles).
+
+We fit the semivariogram function to the sample semivariogram using non-linear weighted least squares; therefore, sensible starting values for the parameters must be chosen to start the iterative process. There are different options for the weights, being $N_h/h^2$ a popular option as in gives more weight to short distances and distance bins have a larger number of observations.
+
+## Kriging computations and types
+
+Kriging is an interpolation geostatistical method. It aims at predicting the value of the process at not sampled point locations (i.e. $\hat{Z}(s_0)$) based on the observed data and an estimated semivariogram function. There are different types of kriging:
+
+1.  Simple kriging: Assumes no trend, $m = \mu$ is known and constant.
+2.  Ordinary kriging: Assumes no trend, $m = \hat{\mu}$ is unknown and constant.
+3.  Universal kriging: There is a trend and therefore $m(s)$ is not constant. Trend function estimated from the data coordinates using 1st or 2nd order polynomials (typically in a regression analysis).
+4.  Regression kriging: There is a trend and therefore $m(s)$ is not constant. Trend function estimated from covariates other than the coordinates.
+5.  Others: Stratified kriging, indicator kriging, block kriging, cokriging...
+
+Kriging is known to be the **BLUP** (best linear unbiased predictor). It is a linear combination of the data values $\hat{Z}(s_0)=\sum_{i=1}^{n} \lambda_i Z(s_i)$, it is unbiased $\text{E}[\hat{Z}(s_0)] = E[Z(s_0)]$ and it minimises the prediction error variance $\text{Var}(\hat{Z}(s_0) - Z(s_0))$. $\lambda_i$ are the kriging weights that we want to estimate to make predictions for a location $s_0$.
+
+Except for the simple kriging case (not likely to be encountered in real life), kriging involves minimising the prediction error variance subject to unbiasedness constraints. For ordinary kriging, it is as follows:
+
+\[ \text{E}[Z(s_0)] - \text{E}[\hat{Z}(s_0)] = \text{E}[Z(s_0)] - \text{E}[\sum_{i=1}^{n} \lambda_i Z(s_i)] = 
+m - \sum_{i=1}^{n} \lambda_i m = m(1-\sum_{i=1}^{n} \lambda_i) =0 \]
+
+Where $m$ is the unknown mean in ordinary kriging. In other words, the ordinary kriging weights must add up to 1. Next, we find the weights by minimising the prediction error variance $\text{Var}(\hat{Z}(s_0) - Z(s_0))$ subject to this condition using Lagrange multipliers, i.e. we minimise the following expression by solving for $\lambda_1, ..., \lambda_n, \phi$:
+
+\[ \text{Var}(\hat{Z}(s_0) - Z(s_0)) - 2 \phi (\sum_{i=1}^{n} \lambda_i - 1) = E[(Z(s_0) - \sum_{i=1}^{n} \lambda_i Z(s_i))^2] - 2 \phi (\sum_{i=1}^{n} \lambda_i - 1) \]
+
+Taking derivatives and solving the system yields expressions for both the kriging predictions and prediction variances. As we develop the algebra, we can plug in our semivariogram estimates taking into account that:
+
+\[ \text{E}[(Z(s_i) - Z(s_j))^2] = \text{Var}(Z(s_i) - Z(s_j)) = 2 \gamma (s_i - s_j) \]
+
+Universal Kriging is a generalization of ordinary kriging were more constraints are needed to be added into the system.
+
+# Data analysis
+
+## Exploratory analysis
+
+```{r secret_preparetemp, echo=FALSE, eval=FALSE}
+library("readxl")
+# Read and clean temperature and station data
+temps <- read_xlsx("rawdata/meteocat/EMA-EM_taules2018.xlsx")
+temps <- mutate(temps, ANY = round(as.numeric(ANY), 1)) %>%
+  rename(temp = ANY) %>%
+  filter(!is.na(temp))
+stations <- read_csv("rawdata/meteocat/Metadades_estacions.csv") %>%
+  rename(CODI = CODI_ESTACIO,
+         lat = LATITUD,
+         lon = LONGITUD) %>%
+  select(CODI, lon, lat)
+# Join, transform to spatial keeping coords
+tempdata <- left_join(temps, stations, by = "CODI") %>%
+  select(-CODI) %>% 
+  filter(!is.na(temp)) %>%
+  st_as_sf(coords = c("lon", "lat"), dim = "XY", crs = 4326)
+```
+
+```{r secret_prepareothers, echo=FALSE, eval=FALSE}
+cat <- read_sf("rawdata/bm5mv21sh0tc1_20200101_0/bm5mv21sh0tpp1_20200101_0.shp") %>%
+  summarise() 
+dem <- raster("rawdata/DEM/cat_wgs84.tif")
+dem <- projectRaster(dem, crs = crs(cat))
+dem <- mask(dem, cat)
+dem <- crop(dem, cat)
+writeRaster(dem, "data/cat_dem.tiff")
+write_sf(cat, "data/cat_boundary.geojson")
+tempdata <- st_transform(tempdata, crs = st_crs(cat)) %>%
+    mutate(x = st_coordinates(.)[,1],
+           y = st_coordinates(.)[,2])
+tempdata <- filter(tempdata, st_intersects(tempdata, cat, sparse = FALSE))
+write_sf(tempdata, "data/tempdata.geojson")
+```
+
+We read the data I have prepared for this example. It consists on data for 182 weather stations in the region of Catalunya, Spain with average temperature data (ºC) for 2018, a DEM for Catalunya, and the boundaries of the region.
+
+```{r read_data}
+tempdata <- read_sf("data/tempdata.geojson")
+dem <- raster("data/cat_dem.tif")
+cat <- read_sf("data/cat_boundary.geojson")
+```
+
+We can do a nice representation of the data using `tmap`:
+
+```{r plotdata, fig.width=6, fig.height=3}
+tm1 <- tm_shape(cat) +
+    tm_borders() +
+tm_shape(tempdata) +
+    tm_dots(col = "temp", size = 0.4, palette = "-Spectral", n = 5) 
+tm2 <- tm_shape(cat) +
+    tm_borders() +
+tm_shape(dem) +
+    tm_raster("cat_dem", palette = terrain.colors(10), style = "cont")
+tmap_arrange(tm1, tm2, nrow = 1)
+```
+
+To gain a first glimpse of how the interpolated data may look like, we do an IDW exploratory interpolation (1km grid).
+
+```{r idw, results='hide'}
+# We make 10km prediction grid, add coordinates and elevation
+gridcat <- st_make_grid(cat, cellsize = 1000, what = "centers") %>%
+  st_sf() %>%
+  mutate(x = st_coordinates(.)[,1],
+         y = st_coordinates(.)[,2],
+         elev = raster::extract(dem, .))
+# Compute IDW and convert to raster
+idwtemp <- idw(temp ~ 1, tempdata, gridcat) %>% # p default = 2
+  rename(temp = var1.pred) %>%
+  select(temp) 
+idwtemp  <- vect2rast(as(idwtemp, "Spatial"), cell.size = 1000)
+```
+```{r idw map, fig.width=3, fig.height=3}
+# And plot
+tm_shape(idwtemp) +
+  tm_raster("temp", palette = "-Spectral", style = "cont") +
+tm_layout(legend.position = c("right", "bottom"))
+```
+
+Only by looking at the IDW map  we can already see a large-scale trend in our data, which makes the assumption of intrinsic stationary process not hold, as the mean is clearly not constant. Therefore, interpolation methods such as  Ordinary kriging (OK) are not appropriate. For the sake of this exercise, we will do it nonetheless. Before starting our variogram modelling, let us check how correlated is mean temperature with the three covariates we are going to use: x, y, and elevation.
+
+```{r correlation, fig.width=9, fig.height=3}
+# Extract elevation of the stations
+tempdata$elev <- raster::extract(dem, tempdata)
+# Plots with linear fit
+theme_set(theme_bw())
+p1 <- ggplot(tempdata, aes(y = temp, x = x)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+p2 <- ggplot(tempdata, aes(y = temp, x = y)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+p3 <- ggplot(tempdata, aes(y = temp, x = elev)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+plot_grid(p1, p2, p3, nrow=1)
+```
+
+While the correlation of the temperatures with the coordinates is limited, there is a very strong correlation between temperature and elevation. One first approach to evaluate the spatial autocorrelation of the data is the lagged scatterplot, where scatterplots of each pair of observations are generated and binned by distance between each pair. 
+
+```{r lagged_scatter, fig.width=9, fig.height=5}
+hscat(temp~1, tempdata, breaks = seq(0, 120000, by = 20000))
+```
+
+There are signs of strong spatial autocorrelation in the data: while correlations for small distances are large, those tend to 0 when the distance between observations increases.
+
+## Variogram modelling
+
+We will start by plotting variogram clouds and sample variograms for OK, UK and RK models. We use bins of 10km until a maximum distance of 250km to calculate the sample variogram.
+
+```{r varcloudsample, fig.width=9, fig.height=5}
+# OK
+p1 <- plot(variogram(temp~1, data=tempdata, cloud=TRUE, cutoff=250000), main="OK: Variogram cloud")
+varOK <- variogram(temp~1, data=tempdata, cutoff=250000, width = 10000)
+p2 <- plot(varOK, main="OK: Sample variogram")
+# UK
+p3 <- plot(variogram(temp~x+y, data=tempdata, cloud=TRUE, cutoff=250000), main="UK: Variogram cloud")
+varUK <- variogram(temp~x+y, data=tempdata, cutoff=250000, width = 10000)
+p4 <- plot(varUK, main="UK: Sample variogram")
+# RK
+p5 <- plot(variogram(temp~elev, data=tempdata, cloud=TRUE, cutoff=250000), main="RK: Variogram cloud")
+varRK <- variogram(temp~elev, data=tempdata, cutoff=250000, width = 10000)
+p6 <- plot(varRK, main="RK: Sample variogram")
+# Plot
+plot_grid(p1, p3, p5, p2, p4, p6, nrow = 2)
+```
+
+If we have a look at the y-axis, we'll see that OK is the one with higher semivariances, followed by UK and RK. This is due to the fact that covariates in UK and RK have managed to explain part of the data variability. Now it's time to fit the theoretical variograms. We will use gaussian variograms for OK and RK and spherical for UK. Starting values are set according to visual inspection of the sample variograms.
+
+```{r fit variograms, fig.width=9, fig.height=3}
+# OK
+varOK.fit <- fit.variogram(varOK, vgm(psill = 22, model="Gau", range = 200000, nugget = 3))
+p1 <- plot(varOK, varOK.fit, main = "OK")
+# UK
+varUK.fit <- fit.variogram(varUK, vgm(psill = 5, model="Gau", range = 100000, nugget = 2))
+p2 <- plot(varUK, varUK.fit, main = "UK")
+# RK
+varRK.fit <- fit.variogram(varRK, vgm(psill = 0.6, model="Exp", range = 200000, nugget = 0.2))
+p3 <- plot(varRK, varRK.fit, main = "RK")
+# Plot
+plot_grid(p1, p2, p3, nrow = 1)
+```
+
+As a last check, we assess whether the isotropy assumption is reasonable for our data. To do so, we plot directional sample variograms and observe whether they have different ranges (geometric anisotropy). Note than gstat cannot handle zonal anisotropy directly (different sills), however, it can be "tricked" using geometric anisotropy parameters. This is illustrated in our data: while directional variograms for UK and RK look fine, for OK:
+
+```{r, fig.height=3, fig.width=5, fig.height=4}
+varOK.ani <- variogram(temp~1, alpha=c(0, 45, 90, 135), data=tempdata, cutoff=250000)
+plot(varOK.ani, varOK.fit)
+```
+
+We see that autocorrelation happens mostly in the 0 (North) and 135 (Southeast) direction, so we have zonal anisotropy. We can fix it by playing with the geometric anisotropy parameters, by setting very large ranges for directions with less autocorrelation. Unfortunately, `gstat` does not have capabilities to fit anisotropy parameters so we have to do the fit by visual inspection:
+
+```{r varani, fig.height=3, fig.width=5, fig.height=4}
+varOK.ani <- variogram(temp~1, alpha=c(0, 45, 90, 135), data=tempdata, cutoff = 250000)
+varOK.fitani <- vgm(psill = 75, model="Gau", 
+                    range = 1500000, nugget = 2,
+                    anis = c(70, 0.1))
+plot(varOK.ani, varOK.fitani)
+```
+
+This is much better. Note that this shape is caused by the presence of a large-scale trend in the data that makes OK unsuitable.
+
+## Kriging
+
+Time to krige! We will predict all locations in the Catalunya grid (1km) using the fitted variogram for each of the kriging modes.
+
+```{r kriging, results='hide'}
+# OK
+krigOK <- krige(temp ~ 1, tempdata, gridcat, model = varOK.fitani)
+krigOK.preds <- vect2rast(as(krigOK, "Spatial"), fname = "var1.pred", cell.size = 1000)
+names(krigOK.preds) <- "Temp_predictions"
+krigOK.vars <- vect2rast(as(krigOK, "Spatial"), fname = "var1.var", cell.size = 1000)
+names(krigOK.vars) <- "Temp_variance"
+# UK
+krigUK <- krige(temp ~ x+y, tempdata, gridcat, model = varUK.fit)
+krigUK.preds <- vect2rast(as(krigUK, "Spatial"), fname = "var1.pred", cell.size = 1000)
+names(krigUK.preds) <- "Temp_predictions"
+krigUK.vars <- vect2rast(as(krigUK, "Spatial"), fname = "var1.var", cell.size = 1000)
+names(krigUK.vars) <- "Temp_variance"
+# RK
+krigRK <- krige(temp ~ elev, tempdata, gridcat, model = varRK.fit)
+krigRK.preds <- vect2rast(as(krigRK, "Spatial"), fname = "var1.pred", cell.size = 1000)
+names(krigRK.preds) <- "Temp_predictions"
+krigRK.vars <- vect2rast(as(krigRK, "Spatial"), fname = "var1.var", cell.size = 1000)
+names(krigRK.vars) <- "Temp_variance"
+```
+
+We do a cartographic representation of predictions in the same scale to allow comparison of the predictions. Variances are not in the same scale as those for RK are much lower than the rest.
+
+```{r cartokriging, fig.width=8, fig.height=5}
+p1 <- tm_shape(krigOK.preds) +
+    tm_raster("Temp_predictions", palette = "-Spectral", style = "cont", breaks = c(0, 20)) +
+    tm_layout(title = "OK", legend.position = c("right", "bottom"))
+p2 <- tm_shape(krigOK.vars) +
+    tm_raster("Temp_variance", style = "cont", palette = "Blues") +
+    tm_layout(title = "OK", legend.position = c("right", "bottom"))
+p3 <- tm_shape(krigUK.preds) +
+    tm_raster("Temp_predictions", palette = "-Spectral", style = "cont", breaks = c(0, 20)) +
+    tm_layout(title = "UK", legend.position = c("right", "bottom"))
+p4 <- tm_shape(krigUK.vars) +
+    tm_raster("Temp_variance", style = "cont", palette = "Blues") +
+    tm_layout(title = "UK", legend.position = c("right", "bottom"))
+p5 <- tm_shape(krigRK.preds) +
+    tm_raster("Temp_predictions", palette = "-Spectral", style = "cont", breaks = c(0, 20), midpoint = NA) +
+    tm_layout(title = "RK", legend.position = c("right", "bottom"))
+p6 <- tm_shape(krigRK.vars) +
+    tm_raster("Temp_variance", style = "cont", palette = "Blues") +
+    tm_layout(title = "RK", legend.position = c("right", "bottom"))
+tmap_arrange(p1, p3, p5, p2, p4, p6, nrow = 2)
+```
+
+## Validation
+
+Since kriging is a prediction method, it makes sense to assess its performance using cross-validation, namely leave-one-out CV: we predict the value for each of the data points using the rest of the sample and the estimated semivariogram. 
+
+```{r cv}
+krigOK.cv <- krige.cv(temp ~ 1, tempdata, varOK.fitani)
+krigUK.cv <- krige.cv(temp ~ x+y, tempdata, varUK.fit)
+krigRK.cv <- krige.cv(temp ~ elev, tempdata, varRK.fit)
+```
+
+Then we need a goodness of fit statistic to evaluate the results. One usual choice is the *Root Mean Square Error* (RMSE):
+
+$$ RMSE = \sqrt{\frac{1}{n} \sum_{i=1}^n (\hat{y}_i - y_i)^2} $$
+
+```{r rmse}
+krigOK.mse <- round(sqrt(mean(krigOK.cv$residual^2)), 2)
+krigUK.mse <- round(sqrt(mean(krigUK.cv$residual^2)), 2)
+krigRK.mse <- round(sqrt(mean(krigRK.cv $residual^2)), 2)
+```
+
+The RMSE of OK is `r krigOK.mse`, the RMSE for UK is `r krigUK.mse` and the RMSE for RK is `r krigRK.mse`. For this example, RK is clearly superior as the DEM is strongly correlated with temperature.
+
+# Bibliography
+
+* Bivand, Roger S., et al. Applied spatial data analysis with R. Vol. 747248717. New York: Springer, 2008.
+* Gelfand, Alan E., et al. Handbook of spatial statistics. CRC press, 2010.
+* Pebesma, Edzer J. "Gstat user’s manual." Dept. of Physical Geography, Utrecht University, Utrecht, The Netherlands (2001).
